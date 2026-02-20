@@ -863,6 +863,9 @@ function App() {
     if (Number(local.settings?.featureBaseSeconds) > 0) {
       setFeatureBaseSeconds(Number(local.settings.featureBaseSeconds));
     }
+    if (local.settings?.timingBreakdownMode === 'all' || local.settings?.timingBreakdownMode === 'top') {
+      setTimingBreakdownMode(local.settings.timingBreakdownMode);
+    }
 
     apiLoadTree().then(payload => {
       if (payload.treeData) {
@@ -870,6 +873,9 @@ function App() {
       }
       if (Number(payload.settings?.featureBaseSeconds) > 0) {
         setFeatureBaseSeconds(Number(payload.settings.featureBaseSeconds));
+      }
+      if (payload.settings?.timingBreakdownMode === 'all' || payload.settings?.timingBreakdownMode === 'top') {
+        setTimingBreakdownMode(payload.settings.timingBreakdownMode);
       }
 
       if (_hasBackend === true) {
@@ -887,7 +893,8 @@ function App() {
     const payload = {
       treeData,
       settings: {
-        featureBaseSeconds
+        featureBaseSeconds,
+        timingBreakdownMode
       }
     };
 
@@ -900,7 +907,7 @@ function App() {
       setSyncStatus(ok ? 'saved' : 'offline');
     }, 500);
     return () => clearTimeout(t);
-  }, [treeData, featureBaseSeconds, isLoaded]);
+  }, [treeData, featureBaseSeconds, timingBreakdownMode, isLoaded]);
 
   // Recalculate layout whenever tree changes
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(() => calculateBalancedLayout(treeData), [treeData]);
@@ -1128,6 +1135,12 @@ function App() {
   const handleDoubleClick = (id) => {
     setEditingId(id);
   };
+
+  const handleResetEstimation = () => {
+    setFeatureBaseSeconds(10);
+    setTimingBreakdownMode('all');
+    setShowTimingBreakdown(false);
+  };
   
   return (
     <div className="w-full h-screen bg-[#0B0B0F] flex flex-col font-sans overflow-hidden text-slate-200">
@@ -1162,6 +1175,13 @@ function App() {
                 title="Reset to 10s"
               >
                 Reset
+              </button>
+              <button
+                onClick={handleResetEstimation}
+                className="text-[11px] text-slate-300 hover:text-white border border-slate-600 rounded px-2 py-1 hover:bg-slate-800 transition-colors"
+                title="Reset all estimation settings"
+              >
+                Reset all
               </button>
             </div>
             <div className="h-5 w-px bg-slate-700"></div>
