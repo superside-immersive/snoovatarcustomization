@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reddit Avatar Mind Map</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      body { margin: 0; padding: 0; }
+      @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+      @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes pulseRing { 0%,100% { box-shadow: 0 0 0 0 rgba(255,69,0,0.4); } 50% { box-shadow: 0 0 0 8px rgba(255,69,0,0); } }
+      .ctx-menu { animation: fadeIn 0.15s ease-out; }
+      .toast-anim { animation: slideUp 0.25s ease-out; }
+      .selected-ring { animation: pulseRing 2s infinite; }
+      .edit-input:focus { outline: none; box-shadow: 0 0 0 2px rgba(255,69,0,0.5); }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useRef, useEffect, useMemo, useCallback } = React;
+      const svgIcon = (paths) => ({ size = 16, className = '' }) => (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={{display:'inline-block',verticalAlign:'middle'}}>
+          {paths}
+        </svg>
+      );
+
+      const Smile = svgIcon(<><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></>);
+      const Palette = svgIcon(<><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.5-.7 1.5-1.5 0-.39-.15-.74-.39-1.01-.24-.27-.39-.62-.39-1.01a1.5 1.5 0 0 1 1.5-1.5H16a6 6 0 0 0 6-6c0-5.5-4.5-10-10-10z"/></>);
+      const Scissors = svgIcon(<><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></>);
+      const Shirt = svgIcon(<path d="M20.38 3.46 16 2 12 5 8 2 3.62 3.46a2 2 0 0 0-1.34 1.89v.7c0 .7.38 1.35.98 1.69L7 9.5V21h10V9.5l3.74-1.76c.6-.34.98-.99.98-1.69v-.7a2 2 0 0 0-1.34-1.89z"/>);
+      const Glasses = svgIcon(<><circle cx="6" cy="15" r="4"/><circle cx="18" cy="15" r="4"/><path d="M14 15a2 2 0 0 0-4 0"/><path d="M2.5 13 5 7c.7-1.3 1.4-2 3-2"/><path d="M21.5 13 19 7c-.7-1.3-1.4-2-3-2"/></>);
+      const Crown = svgIcon(<><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></>);
+      const Hand = svgIcon(<><path d="M18 11V6a2 2 0 0 0-4 0v3"/><path d="M14 10V4a2 2 0 0 0-4 0v7"/><path d="M10 10.5V2a2 2 0 0 0-4 0v9"/><path d="M6 14v-3a2 2 0 0 0-4 0v7a8 8 0 0 0 16 0v-5a2 2 0 0 0-4 0"/></>);
+      const Zap = svgIcon(<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>);
+      const User = svgIcon(<><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>);
+      const Plus = svgIcon(<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>);
+      const Minus = svgIcon(<line x1="5" y1="12" x2="19" y2="12"/>);
+      const Move = svgIcon(<><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></>);
+      const Eye = svgIcon(<><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></>);
+      const Wifi = svgIcon(<><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.86a10 10 0 0 1 14 0"/><path d="M8.5 16.43a5 5 0 0 1 7 0"/></>);
+      const ChevronRight = svgIcon(<polyline points="9 18 15 12 9 6"/>);
+      const ChevronLeft = svgIcon(<polyline points="15 18 9 12 15 6"/>);
+      const Layers = svgIcon(<><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></>);
+      const Download = svgIcon(<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>);
+      const Loader2 = svgIcon(<path d="M21 12a9 9 0 1 1-6.219-8.56"/>);
+      const Maximize = svgIcon(<><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></>);
+      const Minimize = svgIcon(<><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></>);
+      const Trash = svgIcon(<><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>);
+      const Edit3 = svgIcon(<><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></>);
+      const PlusCircle = svgIcon(<><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></>);
+      const XIcon = svgIcon(<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>);
+      const Check = svgIcon(<polyline points="20 6 9 17 4 12"/>);
+      const Undo = svgIcon(<><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></>);
+      const Cloud = svgIcon(<><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></>);
+      const CloudOff = svgIcon(<><path d="M22.61 16.95A5 5 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6M5 5a8 8 0 0 0 4 15h9a5 5 0 0 0 1.7-.3"/><line x1="1" y1="1" x2="23" y2="23"/></>);
+      const RefreshCw = svgIcon(<><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>);
+
+/**
+ * INITIAL HIERARCHICAL DATA STRUCTURE
+ */
+const INITIAL_TREE_DATA = {
+  id: 'root',
+  type: 'root',
+  label: 'SNOOVATAR',
+  children: [
+    {
+      id: 'themed',
+      label: 'Themed Sets',
+      icon: 'Zap',
+      color: '#FF4500',
+      side: 'right',
+      children: [
+        { id: 't1', label: 'Superhero (Snoo-Bat)' },
+        { id: 't2', label: 'The Wizard' },
+        { id: 't3', label: 'Cyber-Snoo (Event)' }
+      ]
+    },
+    {
+      id: 'body_group',
+      label: 'BODY',
+      icon: 'User',
+      color: '#eab308',
+      side: 'right',
+      isGroup: true,
+      children: [
+        {
+          id: 'skin',
+          label: 'Skin Tone',
+          icon: 'Palette',
+          children: [
+            { id: 'st1', label: 'Human Palette (8)' },
+            { id: 'st2', label: 'Reddit Colors (4)' }
+          ]
+        },
+        {
+          id: 'apparel',
+          label: 'Apparel',
+          icon: 'Shirt',
+          children: [
+            { id: 'ap1', label: 'Hoodie / Tee' },
+            { id: 'ap2', label: 'Skirt' },
+            { id: 'ap3', label: 'Dress' },
+            { id: 'ap4', label: 'Pants' },
+            { id: 'ap5', label: 'Shorts' }
+          ]
+        }
+      ]
+    },
+    {
+      id: 'props',
+      label: 'Accessories', 
+      icon: 'Hand',
+      color: '#10b981',
+      side: 'right',
+      children: [
+        { id: 'p1', label: 'Coffee Mug' },
+        { id: 'p2', label: 'Upvote Arrow' },
+        { id: 'p3', label: 'Smartphone' },
+        { id: 'p4', label: 'Heart Hands' },
+        { id: 'p5', label: 'Surfboard' },
+        { id: 'p6', label: 'Guitar' },
+        { id: 'p7', label: 'Skateboard' },
+        { id: 'p8', label: 'Balloon' }
+      ]
+    },
+    {
+      id: 'head_group',
+      label: 'HEAD & FACE',
+      icon: 'Smile',
+      color: '#a855f7',
+      side: 'left',
+      isGroup: true,
+      children: [
+        {
+          id: 'eyes',
+          label: 'Eye Color',
+          icon: 'Eye',
+          children: [
+            { id: 'e1', label: 'Classic Orange' },
+            { id: 'e2', label: 'Natural Brown/Blue' },
+            { id: 'e3', label: 'Heterochromia' },
+            { id: 'e4', label: 'Neon Glow' }
+          ]
+        },
+        {
+          id: 'eyewear',
+          label: 'Eyewear',
+          icon: 'Glasses',
+          children: [
+            { id: 'ew1', label: 'Wayfarer' },
+            { id: 'ew2', label: 'Harry Potter Round' },
+            { id: 'ew3', label: 'Aviators' },
+            { id: 'ew4', label: 'Pixelated' }
+          ]
+        },
+        {
+          id: 'headwear',
+          label: 'Headwear',
+          icon: 'Crown',
+          children: [
+            { id: 'hw1', label: 'Beanie' },
+            { id: 'hw2', label: 'Gaming Headset' },
+            { id: 'hw3', label: 'Crown / Tiara' },
+            { id: 'hw4', label: 'Caps (Backwards)' }
+          ]
+        }
+      ]
+    },
+    {
+      id: 'hair_group',
+      label: 'HAIR STYLES',
+      icon: 'Scissors',
+      color: '#ec4899',
+      side: 'left',
+      isGroup: true,
+      children: [
+        {
+          id: 'antenna',
+          label: 'Antenna',
+          icon: 'Wifi',
+          children: [
+            { id: 'a1', label: 'Antenna' }
+          ]
+        },
+        {
+          id: 'hair_short',
+          label: 'Short Hair',
+          icon: 'Scissors',
+          children: [
+            { id: 'hs1', label: 'Straight' },
+            { id: 'hs2', label: 'Curly' }, 
+            { id: 'hs3', label: 'Afro / Textured' },
+            { id: 'hs4', label: 'Buzz Cut / Fade' }
+          ]
+        },
+        {
+          id: 'hair_long',
+          label: 'Long Hair',
+          icon: 'Scissors',
+          children: [
+            { id: 'hl1', label: 'Straight' },
+            { id: 'hl2', label: 'Wavy' },    
+            { id: 'hl3', label: 'Braids / Locs' },
+            { id: 'hl4', label: 'Ponytail' }
+          ]
+        }
+      ]
+    }
+  ]
+};
+
+// Icon registry (so we store strings in state, not component refs)
+const ICON_MAP = { Smile, Palette, Scissors, Shirt, Glasses, Crown, Hand, Zap, User, Eye, Wifi, Layers, Plus, PlusCircle };
+const resolveIcon = (name) => ICON_MAP[name] || null;
+
+// --- LAYOUT CONSTANTS ---
+const X_SPACING = 300; 
+const Y_SPACING = 70;  
+const DIMS = {
+  root: { w: 220, h: 220 },
+  group: { w: 220, h: 60 },
+  category: { w: 200, h: 54 },
+  item: { w: 180, h: 40 }
+};
+const getHalfWidth = (type) => (DIMS[type] ? DIMS[type].w / 2 : 80);
+
+// --- Unique ID generator ---
+let _idCounter = 1000;
+const genId = () => `node_${++_idCounter}`;
+
+// --- Deep clone tree ---
+const cloneTree = (node) => {
+  const c = { ...node };
+  if (c.children) c.children = c.children.map(cloneTree);
+  return c;
+};
+
+// --- Tree helpers ---
+const findNode = (tree, id) => {
+  if (tree.id === id) return tree;
+  if (tree.children) {
+    for (const child of tree.children) {
+      const found = findNode(child, id);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+const findParent = (tree, id) => {
+  if (tree.children) {
+    for (const child of tree.children) {
+      if (child.id === id) return tree;
+      const found = findParent(child, id);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+const removeNode = (tree, id) => {
+  const t = cloneTree(tree);
+  const parent = findParent(t, id);
+  if (parent) {
+    parent.children = parent.children.filter(c => c.id !== id);
+  }
+  return t;
+};
+
+const renameNode = (tree, id, newLabel) => {
+  const t = cloneTree(tree);
+  const node = findNode(t, id);
+  if (node) node.label = newLabel;
+  return t;
+};
+
+const addChild = (tree, parentId, side) => {
+  const t = cloneTree(tree);
+  const parent = findNode(t, parentId);
+  if (!parent) return { tree: t, newId: null };
+  if (!parent.children) parent.children = [];
+  const newId = genId();
+  const newNode = { id: newId, label: 'New Node' };
+  // Inherit side from parent if it's a top-level child
+  if (parent.id === 'root') {
+    newNode.side = side || 'right';
+    newNode.color = '#64748b';
+    newNode.icon = 'Layers';
+  }
+  parent.children.push(newNode);
+  return { tree: t, newId };
+};
+
+// --- BALANCED LAYOUT ALGORITHM ---
+const calculateBalancedLayout = (root) => {
+  const nodes = [];
+  const edges = [];
+
+  const rootNode = {
+    id: root.id,
+    type: 'root',
+    label: root.label,
+    x: 0,
+    y: 0,
+    color: '#FF4500'
+  };
+  nodes.push(rootNode);
+
+  const layoutSubtree = (roots, direction) => {
+    let currentY = 0;
+    const subtreeNodes = [];
+    const subtreeEdges = [];
+
+    const traverse = (node, depth, parentColor) => {
+      const isLeaf = !node.children || node.children.length === 0;
+      const levelSpacing = depth === 0 ? X_SPACING + 50 : X_SPACING;
+      const x = direction * (depth * X_SPACING + levelSpacing); 
+      let y;
+      
+      const nodeColor = node.color || parentColor || '#64748b';
+      const type = node.isGroup ? 'group' : (isLeaf ? 'item' : 'category');
+
+      if (isLeaf) {
+        y = currentY;
+        currentY += Y_SPACING;
+        
+        subtreeNodes.push({
+          id: node.id,
+          type: 'item',
+          label: node.label,
+          x,
+          y,
+          color: nodeColor,
+          direction
+        });
+      } else {
+        const childYs = node.children.map(child => traverse(child, depth + 1, nodeColor));
+        const minY = childYs[0];
+        const maxY = childYs[childYs.length - 1];
+        y = (minY + maxY) / 2;
+
+        subtreeNodes.push({
+          id: node.id,
+          type: type,
+          label: node.label,
+          icon: resolveIcon(node.icon),
+          x,
+          y,
+          color: nodeColor,
+          direction
+        });
+
+        node.children.forEach(child => {
+          const childNode = subtreeNodes.find(n => n.id === child.id);
+          let sourceX, targetX;
+          if (direction === 1) {
+            sourceX = x + getHalfWidth(type); 
+            targetX = childNode.x - getHalfWidth(childNode.type);
+          } else {
+            sourceX = x - getHalfWidth(type); 
+            targetX = childNode.x + getHalfWidth(childNode.type);
+          }
+          subtreeEdges.push({
+            id: `e-${node.id}-${child.id}`,
+            sourceX, sourceY: y,
+            targetX, targetY: childNode.y,
+            color: nodeColor
+          });
+        });
+      }
+      return y;
+    };
+
+    roots.map(child => traverse(child, 0, child.color));
+    
+    const totalHeight = currentY;
+    const yOffset = -(totalHeight / 2) + (Y_SPACING / 2);
+
+    subtreeNodes.forEach(n => n.y += yOffset);
+    subtreeEdges.forEach(e => {
+      e.sourceY += yOffset;
+      e.targetY += yOffset;
+    });
+
+    roots.forEach((child) => {
+      const childNode = subtreeNodes.find(n => n.id === child.id);
+      let sourceX, targetX;
+      if (direction === 1) {
+        sourceX = rootNode.x + getHalfWidth('root') - 10;
+        targetX = childNode.x - getHalfWidth(childNode.type);
+      } else {
+        sourceX = rootNode.x - getHalfWidth('root') + 10;
+        targetX = childNode.x + getHalfWidth(childNode.type);
+      }
+      subtreeEdges.push({
+        id: `e-root-${child.id}`,
+        sourceX, sourceY: rootNode.y,
+        targetX, targetY: childNode.y,
+        color: child.color || '#64748b'
+      });
+    });
+
+    return { nodes: subtreeNodes, edges: subtreeEdges };
+  };
+
+  const leftChildren = root.children ? root.children.filter(c => c.side === 'left') : [];
+  const rightChildren = root.children ? root.children.filter(c => c.side === 'right') : [];
+
+  const leftLayout = layoutSubtree(leftChildren, -1);
+  const rightLayout = layoutSubtree(rightChildren, 1);
+
+  return {
+    nodes: [...nodes, ...leftLayout.nodes, ...rightLayout.nodes],
+    edges: [...edges, ...leftLayout.edges, ...rightLayout.edges]
+  };
+};
+
+/**
+ * TOAST NOTIFICATION
+ */
+const Toast = ({ message, onDone }) => {
+  useEffect(() => {
+    const t = setTimeout(onDone, 2200);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <div className="toast-anim fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] bg-slate-800 border border-slate-600 text-slate-200 px-5 py-2.5 rounded-xl shadow-2xl text-sm font-medium flex items-center gap-2">
+      <Check size={14} className="text-emerald-400" /> {message}
+    </div>
+  );
+};
+
+/**
+ * CONTEXT MENU
+ */
+const ContextMenu = ({ x, y, nodeId, nodeLabel, isRoot, onRename, onAddChild, onAddChildLeft, onDelete, onClose }) => {
+  const menuRef = useRef(null);
+  useEffect(() => {
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) onClose();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const MenuItem = ({ icon: Icon, label, color, onClick, danger }) => (
+    <button 
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+        danger 
+          ? 'text-red-400 hover:bg-red-500/10 hover:text-red-300' 
+          : 'text-slate-300 hover:bg-slate-700/80 hover:text-white'
+      }`}
+    >
+      <Icon size={15} className={danger ? 'text-red-400' : (color || 'text-slate-400')} />
+      {label}
+    </button>
+  );
+
+  return (
+    <div 
+      ref={menuRef}
+      className="ctx-menu fixed z-[100] bg-slate-900/95 backdrop-blur-xl border border-slate-700 rounded-xl shadow-2xl p-1.5 min-w-[200px]"
+      style={{ left: x, top: y }}
+    >
+      <div className="px-3 py-2 border-b border-slate-700/50 mb-1">
+        <p className="text-xs text-slate-500 font-mono uppercase tracking-wider">Node</p>
+        <p className="text-sm text-white font-semibold truncate mt-0.5">{nodeLabel}</p>
+      </div>
+      <MenuItem icon={Edit3} label="Rename" color="text-blue-400" onClick={onRename} />
+      <MenuItem icon={PlusCircle} label={isRoot ? "Add Child (Right)" : "Add Child"} color="text-emerald-400" onClick={onAddChild} />
+      {isRoot && <MenuItem icon={PlusCircle} label="Add Child (Left)" color="text-purple-400" onClick={onAddChildLeft} />}
+      {!isRoot && <div className="h-px bg-slate-700/50 my-1 mx-2"></div>}
+      {!isRoot && <MenuItem icon={Trash} label="Delete" danger onClick={onDelete} />}
+    </div>
+  );
+};
+
+/**
+ * INLINE RENAME INPUT
+ */
+const InlineRenameInput = ({ value, onConfirm, onCancel, x, y, width }) => {
+  const [text, setText] = useState(value);
+  const inputRef = useRef(null);
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, []);
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') onConfirm(text);
+    if (e.key === 'Escape') onCancel();
+  };
+  return (
+    <div 
+      className="absolute z-[80] flex items-center gap-1"
+      style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}
+    >
+      <input
+        ref={inputRef}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={() => onConfirm(text)}
+        className="edit-input bg-slate-800 border border-[#FF4500]/60 text-white text-sm px-3 py-1.5 rounded-lg font-medium"
+        style={{ width: width || 180 }}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+};
+
+/**
+ * NODE COMPONENTS (with selection and interaction)
+ */
+const RootNode = ({ x, y, label, selected, onSelect, onContextMenu }) => (
+  <div 
+    className={`absolute flex flex-col items-center justify-center transition-all cursor-pointer z-30 ${selected ? 'selected-ring rounded-full' : 'hover:scale-110'}`}
+    style={{ 
+      left: x, top: y, 
+      transform: 'translate(-50%, -50%)',
+      width: DIMS.root.w, height: DIMS.root.h
+    }}
+    onClick={(e) => { e.stopPropagation(); onSelect(); }}
+    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(e); }}
+  >
+    <div className="w-full h-full bg-transparent flex items-start justify-center relative z-10 pt-4">
+       <img 
+        src="https://redditinc.com/hs-fs/hubfs/Reddit%20Inc/Content/Brand%20Page/Reddit_Logo.png?width=800&height=800&name=Reddit_Logo.png" 
+        alt="Snoo" 
+        crossOrigin="anonymous"
+        className="w-[75%] h-[75%] object-contain drop-shadow-2xl"
+       />
+    </div>
+    <div className="absolute bottom-2 bg-[#FF4500] px-6 py-2 rounded-xl font-extrabold text-white text-xl tracking-wider shadow-[0_0_30px_rgba(255,69,0,0.4)] border-2 border-orange-400 z-20">
+      {label}
+    </div>
+  </div>
+);
+
+const GroupNode = ({ x, y, label, color, icon: Icon, direction, selected, onSelect, onContextMenu }) => (
+  <div 
+    className={`absolute flex items-center p-3 rounded-xl bg-slate-900 border-2 shadow-xl transition-all cursor-pointer z-20 ${
+      selected ? 'ring-2 ring-[#FF4500] ring-offset-2 ring-offset-slate-950 scale-105' : 'hover:scale-105'
+    } ${direction === -1 ? 'flex-row-reverse text-right' : 'flex-row text-left'}`}
+    style={{ 
+      left: x, top: y, 
+      borderColor: selected ? '#FF4500' : color,
+      transform: 'translate(-50%, -50%)',
+      width: DIMS.group.w,
+      height: DIMS.group.h
+    }}
+    onClick={(e) => { e.stopPropagation(); onSelect(); }}
+    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(e); }}
+  >
+    <div className={`p-2 rounded-lg text-white shadow-inner shrink-0 ${direction === -1 ? 'ml-3' : 'mr-3'}`} style={{ backgroundColor: color }}>
+      {Icon && <Icon size={24} />}
+    </div>
+    <div className="flex-grow">
+      <span className="text-xs text-slate-400 font-mono uppercase tracking-widest block mb-0.5">Category Group</span>
+      <span className="text-base font-bold text-white leading-tight">{label}</span>
+    </div>
+    <div className={`text-slate-600 ${direction === -1 ? 'mr-2' : 'ml-2'}`}>
+       {direction === -1 ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+    </div>
+  </div>
+);
+
+const CategoryNode = ({ x, y, label, color, icon: Icon, direction, selected, onSelect, onContextMenu }) => (
+  <div 
+    className={`absolute flex items-center p-2 rounded-lg bg-slate-800 shadow-lg transition-all cursor-pointer z-20 border ${
+      selected ? 'ring-2 ring-[#FF4500] ring-offset-1 ring-offset-slate-950 border-[#FF4500] scale-105' : 'border-slate-600 hover:scale-105 hover:border-slate-400'
+    } ${direction === -1 ? 'flex-row-reverse text-right' : 'flex-row text-left'}`}
+    style={{ 
+      left: x, top: y, 
+      borderLeftWidth: direction === 1 ? 4 : 1,
+      borderLeftColor: direction === 1 ? (selected ? '#FF4500' : color) : (selected ? '#FF4500' : '#475569'),
+      borderRightWidth: direction === -1 ? 4 : 1,
+      borderRightColor: direction === -1 ? (selected ? '#FF4500' : color) : (selected ? '#FF4500' : '#475569'),
+      transform: 'translate(-50%, -50%)',
+      width: DIMS.category.w,
+      height: DIMS.category.h
+    }}
+    onClick={(e) => { e.stopPropagation(); onSelect(); }}
+    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(e); }}
+  >
+    <div className={`text-slate-300 ${direction === -1 ? 'ml-3' : 'mr-3'}`}>
+      {Icon && <Icon size={18} />}
+    </div>
+    <span className="text-sm font-semibold text-slate-200 leading-tight flex-grow">{label}</span>
+  </div>
+);
+
+const ItemNode = ({ x, y, label, color, direction, selected, onSelect, onContextMenu }) => (
+  <div 
+    className={`absolute flex items-center px-3 py-2 rounded border transition-all z-10 group ${
+      selected 
+        ? 'bg-slate-800 border-[#FF4500] ring-2 ring-[#FF4500]/30 scale-105' 
+        : 'bg-slate-950/50 border-slate-800 hover:border-slate-500 hover:bg-slate-800'
+    } ${direction === -1 ? 'flex-row-reverse text-right' : 'flex-row text-left'}`}
+    style={{ 
+      left: x, top: y,
+      transform: 'translate(-50%, -50%)',
+      width: DIMS.item.w,
+      height: DIMS.item.h,
+      cursor: 'pointer'
+    }}
+    onClick={(e) => { e.stopPropagation(); onSelect(); }}
+    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(e); }}
+  >
+    <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${direction === -1 ? 'ml-2' : 'mr-2'}`} style={{ backgroundColor: color }}></div>
+    <span className={`text-xs font-medium truncate flex-grow ${selected ? 'text-white' : 'text-slate-400 group-hover:text-white'}`}>{label}</span>
+  </div>
+);
+
+const EdgeLine = ({ sourceX, sourceY, targetX, targetY, color }) => {
+  const midX = (sourceX + targetX) / 2;
+  const path = `M ${sourceX} ${sourceY} C ${midX} ${sourceY}, ${midX} ${targetY}, ${targetX} ${targetY}`;
+  return (
+    <g>
+      <path d={path} stroke="#0B0B0F" strokeWidth={4} fill="none" opacity={1} />
+      <path d={path} stroke={color} strokeWidth={2} fill="none" opacity={0.6} />
+      <circle cx={targetX} cy={targetY} r={2} fill={color} />
+    </g>
+  );
+};
+
+/**
+ * FLOATING ACTION BAR (appears when a node is selected)
+ */
+const FloatingActionBar = ({ selectedId, isRoot, onRename, onAddChild, onDelete, onDeselect }) => (
+  <div className="toast-anim absolute top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-1 bg-slate-900/95 backdrop-blur-xl border border-slate-700 rounded-xl shadow-2xl p-1.5">
+    <button 
+      onClick={onRename}
+      className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-blue-400 hover:bg-blue-500/10 transition-all"
+      title="Rename (or double-click)"
+    >
+      <Edit3 size={14} /> Rename
+    </button>
+    <div className="w-px h-6 bg-slate-700"></div>
+    <button 
+      onClick={onAddChild}
+      className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-emerald-400 hover:bg-emerald-500/10 transition-all"
+      title="Add child node"
+    >
+      <PlusCircle size={14} /> Add Child
+    </button>
+    {!isRoot && (
+      <>
+        <div className="w-px h-6 bg-slate-700"></div>
+        <button 
+          onClick={onDelete}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-400 hover:bg-red-500/10 transition-all"
+          title="Delete node"
+        >
+          <Trash size={14} /> Delete
+        </button>
+      </>
+    )}
+    <div className="w-px h-6 bg-slate-700"></div>
+    <button 
+      onClick={onDeselect}
+      className="p-2 rounded-lg text-slate-500 hover:bg-slate-700 hover:text-slate-300 transition-all"
+      title="Deselect"
+    >
+      <XIcon size={14} />
+    </button>
+  </div>
+);
+
+
+// --- API helpers (works on Render with backend, falls back gracefully on GitHub Pages) ---
+const API_BASE = window.location.origin;
+let _hasBackend = null; // null = unknown, true/false after first check
+
+const apiLoadTree = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/api/tree`, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) throw new Error('Not OK');
+    const data = await res.json();
+    _hasBackend = true;
+    return data;
+  } catch (e) {
+    _hasBackend = false;
+    console.warn('No backend detected (GitHub Pages mode). Edits are local only.');
+    return null;
+  }
+};
+
+const apiSaveTree = async (tree) => {
+  if (_hasBackend === false) return false; // skip if no backend
+  try {
+    const res = await fetch(`${API_BASE}/api/tree`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tree),
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) throw new Error('Not OK');
+    return true;
+  } catch (e) {
+    console.warn('Save failed');
+    return false;
+  }
+};
+
+function App() {
+  const [treeData, setTreeData] = useState(INITIAL_TREE_DATA);
+  const [history, setHistory] = useState([]);
+  const [transform, setTransform] = useState({ x: 0, y: 0, k: 0.65 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [syncStatus, setSyncStatus] = useState('loading'); // 'loading' | 'saved' | 'saving' | 'offline' | 'local'
+  const [isLoaded, setIsLoaded] = useState(false);
+  const containerRef = useRef(null);
+  const dragStart = useRef({ x: 0, y: 0 });
+
+  // Load from server on mount
+  useEffect(() => {
+    apiLoadTree().then(data => {
+      if (data && data.id) {
+        setTreeData(data);
+        setSyncStatus('saved');
+      } else {
+        setSyncStatus(_hasBackend === false ? 'local' : 'saved');
+      }
+      setIsLoaded(true);
+    });
+  }, []);
+
+  // Auto-save whenever tree changes (after initial load)
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (_hasBackend === false) { setSyncStatus('local'); return; }
+    setSyncStatus('saving');
+    const t = setTimeout(async () => {
+      const ok = await apiSaveTree(treeData);
+      setSyncStatus(ok ? 'saved' : 'offline');
+    }, 500);
+    return () => clearTimeout(t);
+  }, [treeData, isLoaded]);
+
+  // Recalculate layout whenever tree changes
+  const { nodes: layoutNodes, edges: layoutEdges } = useMemo(() => calculateBalancedLayout(treeData), [treeData]);
+
+  const graphBounds = useMemo(() => {
+    if (layoutNodes.length === 0) return { minX: 0, maxX: 0, minY: 0, maxY: 0, width: 0, height: 0 };
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    layoutNodes.forEach(node => {
+      const paddingX = 200;
+      const paddingY = 100;
+      if (node.x - paddingX < minX) minX = node.x - paddingX;
+      if (node.x + paddingX > maxX) maxX = node.x + paddingX;
+      if (node.y - paddingY < minY) minY = node.y - paddingY;
+      if (node.y + paddingY > maxY) maxY = node.y + paddingY;
+    });
+    return { minX, maxX, minY, maxY, width: maxX - minX, height: maxY - minY };
+  }, [layoutNodes]);
+
+  const showToast = (msg) => setToast(msg);
+
+  // Save state for undo
+  const pushHistory = useCallback(() => {
+    setHistory(prev => [...prev.slice(-30), cloneTree(treeData)]);
+  }, [treeData]);
+
+  const handleUndo = useCallback(() => {
+    if (history.length === 0) return;
+    const prev = history[history.length - 1];
+    setHistory(h => h.slice(0, -1));
+    setTreeData(prev);
+    setSelectedId(null);
+    setEditingId(null);
+    setContextMenu(null);
+    showToast('Undo');
+  }, [history]);
+
+  // EDIT OPERATIONS
+  const handleDelete = useCallback((id) => {
+    if (id === 'root') return;
+    pushHistory();
+    setTreeData(prev => removeNode(prev, id));
+    setSelectedId(null);
+    setContextMenu(null);
+    showToast('Node deleted');
+  }, [pushHistory]);
+
+  const handleRename = useCallback((id) => {
+    setEditingId(id);
+    setContextMenu(null);
+  }, []);
+
+  const confirmRename = useCallback((id, newLabel) => {
+    if (newLabel && newLabel.trim()) {
+      pushHistory();
+      setTreeData(prev => renameNode(prev, id, newLabel.trim()));
+      showToast('Renamed');
+    }
+    setEditingId(null);
+  }, [pushHistory]);
+
+  const handleAddChild = useCallback((parentId, side) => {
+    pushHistory();
+    const result = addChild(treeData, parentId, side);
+    setTreeData(result.tree);
+    setContextMenu(null);
+    if (result.newId) {
+      setSelectedId(result.newId);
+      // Auto-enter rename mode for the new node
+      setTimeout(() => setEditingId(result.newId), 100);
+    }
+    showToast('Node added');
+  }, [treeData, pushHistory]);
+
+  const handleNodeContextMenu = useCallback((e, nodeId) => {
+    const node = findNode(treeData, nodeId);
+    if (!node) return;
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      nodeId,
+      nodeLabel: node.label,
+      isRoot: nodeId === 'root'
+    });
+    setSelectedId(nodeId);
+  }, [treeData]);
+
+  // CDN Scripts
+  useEffect(() => {
+    const script1 = document.createElement('script');
+    script1.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+    script1.async = true;
+    document.body.appendChild(script1);
+    const script2 = document.createElement('script');
+    script2.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    script2.async = true;
+    document.body.appendChild(script2);
+    return () => {
+      document.body.removeChild(script1);
+      document.body.removeChild(script2);
+    };
+  }, []);
+
+  // Center View
+  useEffect(() => {
+    if (containerRef.current) {
+      const { clientWidth, clientHeight } = containerRef.current;
+      setTransform(prev => ({
+        ...prev,
+        x: clientWidth / 2,
+        y: clientHeight / 2
+      }));
+    }
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e) => {
+      if (editingId) return; // Don't handle shortcuts while editing
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        e.preventDefault();
+        handleUndo();
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedId && selectedId !== 'root' && !editingId) {
+          e.preventDefault();
+          handleDelete(selectedId);
+        }
+      }
+      if (e.key === 'Escape') {
+        setSelectedId(null);
+        setContextMenu(null);
+        setEditingId(null);
+      }
+      if (e.key === 'F2' && selectedId) {
+        e.preventDefault();
+        handleRename(selectedId);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [selectedId, editingId, handleUndo, handleDelete, handleRename]);
+
+  // Fullscreen
+  const handleFullscreen = () => {
+    try {
+      if (!document.fullscreenElement) {
+        containerRef.current.requestFullscreen().then(() => setIsFullscreen(true))
+          .catch(err => alert("Fullscreen not supported in this preview mode."));
+      } else {
+        document.exitFullscreen().then(() => setIsFullscreen(false));
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    const h = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', h);
+    return () => document.removeEventListener('fullscreenchange', h);
+  }, []);
+
+  // PDF
+  const handleDownloadPDF = async () => {
+    if (!window.html2canvas || !window.jspdf) {
+      alert("Modules still loading... try again in 3 seconds.");
+      return;
+    }
+    setIsDownloading(true);
+    try {
+      const element = containerRef.current;
+      const canvas = await window.html2canvas(element, {
+        backgroundColor: '#0B0B0F', scale: 2, logging: false,
+        useCORS: true, allowTaint: true,
+        windowWidth: element.scrollWidth, windowHeight: element.scrollHeight
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const { jsPDF } = window.jspdf;
+      const orientation = canvas.width > canvas.height ? 'l' : 'p';
+      const pdf = new jsPDF({ orientation, unit: 'px', format: [canvas.width * 0.75, canvas.height * 0.75] });
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width * 0.75, canvas.height * 0.75);
+      pdf.save('reddit-snoo-flowchart.pdf');
+    } catch (err) {
+      console.error("PDF Generation failed:", err);
+      alert("Could not generate PDF.");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  // Pan & Zoom
+  const handleWheel = (e) => {
+    e.preventDefault();
+    const zoomSensitivity = 0.001;
+    const newZoom = Math.min(Math.max(0.1, transform.k - e.deltaY * zoomSensitivity), 2);
+    setTransform(prev => ({ ...prev, k: newZoom }));
+  };
+
+  const handleMouseDown = (e) => {
+    if (e.button === 2) return; // Don't drag on right-click
+    setIsDragging(true);
+    dragStart.current = { x: e.clientX - transform.x, y: e.clientY - transform.y };
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    setTransform(prev => ({
+      ...prev,
+      x: e.clientX - dragStart.current.x,
+      y: e.clientY - dragStart.current.y
+    }));
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
+  const zoomIn = () => setTransform(prev => ({ ...prev, k: Math.min(prev.k + 0.1, 2) }));
+  const zoomOut = () => setTransform(prev => ({ ...prev, k: Math.max(prev.k - 0.1, 0.1) }));
+
+  // Click on canvas to deselect
+  const handleCanvasClick = () => {
+    setSelectedId(null);
+    setContextMenu(null);
+    setEditingId(null);
+  };
+
+  // Double-click on node to rename
+  const handleDoubleClick = (id) => {
+    setEditingId(id);
+  };
+  
+  return (
+    <div className="w-full h-screen bg-[#0B0B0F] flex flex-col font-sans overflow-hidden text-slate-200">
+      {/* HEADER */}
+      <div className="px-6 py-4 bg-[#0B0B0F] border-b border-slate-800 flex justify-between items-center z-50 shadow-md shrink-0">
+        <div>
+          <h1 className="text-xl font-bold text-white flex items-center gap-3">
+            <span className="bg-[#FF4500] text-white px-2 py-0.5 rounded text-sm tracking-wider font-extrabold">REDDIT</span>
+            Avatar Mind Map
+          </h1>
+          <p className="text-sm text-slate-400 mt-1">Click to select · Double-click to rename · Right-click for options</p>
+        </div>
+        <div className="flex gap-4 items-center">
+          {/* Sync status */}
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+            syncStatus === 'saved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+            syncStatus === 'saving' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+            syncStatus === 'loading' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
+            'bg-red-500/10 border-red-500/20 text-red-400'
+          }`}>
+            {syncStatus === 'saved' && <><Cloud size={13} /> Saved</>}
+            {syncStatus === 'saving' && <><RefreshCw size={13} className="animate-spin" /> Saving...</>}
+            {syncStatus === 'loading' && <><RefreshCw size={13} className="animate-spin" /> Loading...</>}
+            {syncStatus === 'local' && <><CloudOff size={13} /> Local only</>}
+            {syncStatus === 'offline' && <><CloudOff size={13} /> Offline</>}
+          </div>
+          <div className="flex gap-4 text-xs font-medium text-slate-500 mr-4">
+            <span className="flex items-center gap-1.5"><kbd className="bg-slate-800 px-1.5 py-0.5 rounded text-[10px] border border-slate-700">F2</kbd> Rename</span>
+            <span className="flex items-center gap-1.5"><kbd className="bg-slate-800 px-1.5 py-0.5 rounded text-[10px] border border-slate-700">Del</kbd> Delete</span>
+            <span className="flex items-center gap-1.5"><kbd className="bg-slate-800 px-1.5 py-0.5 rounded text-[10px] border border-slate-700">⌘Z</kbd> Undo</span>
+          </div>
+          <button 
+            onClick={handleUndo}
+            disabled={history.length === 0}
+            className={`p-2 rounded-lg transition-all ${history.length > 0 ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 cursor-not-allowed'}`}
+            title="Undo (⌘Z)"
+          >
+            <Undo size={18} />
+          </button>
+        </div>
+      </div>
+
+      {/* CANVAS */}
+      <div 
+        ref={containerRef}
+        className={`flex-grow relative bg-[#0B0B0F] overflow-hidden ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onClick={handleCanvasClick}
+      >
+        {/* Grid */}
+        <div 
+          className="absolute inset-0 pointer-events-none opacity-[0.05]"
+          style={{
+            backgroundImage: 'linear-gradient(#475569 1px, transparent 1px), linear-gradient(90deg, #475569 1px, transparent 1px)',
+            backgroundSize: `${40 * transform.k}px ${40 * transform.k}px`,
+            backgroundPosition: `${transform.x}px ${transform.y}px`
+          }}
+        />
+
+        {/* Floating action bar */}
+        {selectedId && !editingId && !contextMenu && (
+          <FloatingActionBar 
+            selectedId={selectedId}
+            isRoot={selectedId === 'root'}
+            onRename={() => handleRename(selectedId)}
+            onAddChild={() => handleAddChild(selectedId, 'right')}
+            onDelete={() => handleDelete(selectedId)}
+            onDeselect={() => setSelectedId(null)}
+          />
+        )}
+
+        {/* Graph content */}
+        <div 
+          style={{ 
+            transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`,
+            transformOrigin: '0 0',
+            width: 0, height: 0, position: 'absolute'
+          }}
+        >
+          <svg 
+            className="overflow-visible absolute pointer-events-none" 
+            style={{ 
+              zIndex: 0,
+              left: graphBounds.minX,
+              top: graphBounds.minY,
+              width: graphBounds.width,
+              height: graphBounds.height
+            }}
+            viewBox={`${graphBounds.minX} ${graphBounds.minY} ${graphBounds.width} ${graphBounds.height}`}
+          >
+            {layoutEdges.map(edge => (
+              <EdgeLine key={edge.id} {...edge} />
+            ))}
+          </svg>
+
+          {layoutNodes.map(node => {
+            const isSelected = selectedId === node.id;
+            const isEditing = editingId === node.id;
+            const commonProps = {
+              ...node,
+              selected: isSelected,
+              onSelect: () => setSelectedId(node.id),
+              onContextMenu: (e) => handleNodeContextMenu(e, node.id),
+            };
+
+            // Inline rename overlay
+            if (isEditing) {
+              return (
+                <React.Fragment key={node.id}>
+                  {node.type === 'root' && <RootNode {...commonProps} />}
+                  {node.type === 'group' && <GroupNode {...commonProps} />}
+                  {node.type === 'category' && <CategoryNode {...commonProps} />}
+                  {node.type === 'item' && <ItemNode {...commonProps} />}
+                  <InlineRenameInput 
+                    value={node.label}
+                    x={node.x}
+                    y={node.y - (DIMS[node.type] ? DIMS[node.type].h / 2 + 24 : 40)}
+                    width={DIMS[node.type] ? DIMS[node.type].w : 180}
+                    onConfirm={(text) => confirmRename(node.id, text)}
+                    onCancel={() => setEditingId(null)}
+                  />
+                </React.Fragment>
+              );
+            }
+
+            const wrapper = (child) => (
+              <div key={node.id} onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClick(node.id); }}>
+                {child}
+              </div>
+            );
+
+            if (node.type === 'root') return wrapper(<RootNode {...commonProps} />);
+            if (node.type === 'group') return wrapper(<GroupNode {...commonProps} />);
+            if (node.type === 'category') return wrapper(<CategoryNode {...commonProps} />);
+            return wrapper(<ItemNode {...commonProps} />);
+          })}
+        </div>
+
+        {/* Context Menu */}
+        {contextMenu && (
+          <ContextMenu 
+            x={contextMenu.x}
+            y={contextMenu.y}
+            nodeId={contextMenu.nodeId}
+            nodeLabel={contextMenu.nodeLabel}
+            isRoot={contextMenu.isRoot}
+            onRename={() => handleRename(contextMenu.nodeId)}
+            onAddChild={() => handleAddChild(contextMenu.nodeId, 'right')}
+            onAddChildLeft={() => handleAddChild(contextMenu.nodeId, 'left')}
+            onDelete={() => handleDelete(contextMenu.nodeId)}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
+
+        {/* Bottom toolbar */}
+        <div className="absolute bottom-8 right-8 flex flex-col gap-2 bg-slate-900/90 p-2 rounded-xl shadow-2xl border border-slate-700 backdrop-blur-md">
+          <button onClick={zoomIn} className="p-2.5 hover:bg-slate-800 rounded-lg text-slate-300 transition-colors" title="Zoom In">
+            <Plus size={20} />
+          </button>
+          <button onClick={zoomOut} className="p-2.5 hover:bg-slate-800 rounded-lg text-slate-300 transition-colors" title="Zoom Out">
+            <Minus size={20} />
+          </button>
+          <div className="h-px bg-slate-700 my-1 mx-2"></div>
+          
+          <button 
+            onClick={handleDownloadPDF} 
+            disabled={isDownloading}
+            className={`p-2.5 rounded-lg shadow-lg transition-all flex items-center justify-center gap-2 ${
+              isDownloading 
+                ? 'bg-slate-700 cursor-wait text-slate-400' 
+                : 'bg-[#FF4500] hover:bg-orange-600 text-white active:scale-95'
+            }`}
+            title="Download PDF"
+          >
+            {isDownloading ? <Loader2 size={20} className="animate-spin" /> : <Download size={20} />}
+          </button>
+
+          <button 
+            onClick={handleFullscreen} 
+            className="p-2.5 hover:bg-slate-800 rounded-lg text-slate-300 transition-colors" 
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+          >
+            {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Toast */}
+      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "reddit-chart",
+  "version": "1.0.0",
+  "description": "Reddit Avatar Mind Map - Editable & Persistent",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
