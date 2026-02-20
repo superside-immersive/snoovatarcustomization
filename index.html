@@ -57,6 +57,7 @@
       const XIcon = svgIcon(<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>);
       const Check = svgIcon(<polyline points="20 6 9 17 4 12"/>);
       const Undo = svgIcon(<><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></>);
+      const Timer = svgIcon(<><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 1h6"/></>);
       const Cloud = svgIcon(<><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></>);
       const CloudOff = svgIcon(<><path d="M22.61 16.95A5 5 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6M5 5a8 8 0 0 0 4 15h9a5 5 0 0 0 1.7-.3"/><line x1="1" y1="1" x2="23" y2="23"/></>);
       const RefreshCw = svgIcon(<><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>);
@@ -229,6 +230,57 @@ const DIMS = {
   item: { w: 180, h: 40 }
 };
 const getHalfWidth = (type) => (DIMS[type] ? DIMS[type].w / 2 : 80);
+const ROOT_BRANCH_COLORS = ['#06b6d4', '#14b8a6', '#22c55e', '#84cc16', '#f59e0b', '#f97316', '#ec4899', '#8b5cf6'];
+
+const getNextRootSide = (rootNode) => {
+  const topLevelChildren = rootNode.children || [];
+  const withSide = topLevelChildren.filter(child => child.side === 'left' || child.side === 'right');
+  const lastSide = withSide.length > 0 ? withSide[withSide.length - 1].side : null;
+  if (lastSide === 'right') return 'left';
+  if (lastSide === 'left') return 'right';
+  const rightCount = withSide.filter(child => child.side === 'right').length;
+  const leftCount = withSide.filter(child => child.side === 'left').length;
+  return rightCount <= leftCount ? 'right' : 'left';
+};
+
+const getNextRootColor = (rootNode) => {
+  const usedColors = new Set((rootNode.children || []).map(child => child.color).filter(Boolean));
+  for (const color of ROOT_BRANCH_COLORS) {
+    if (!usedColors.has(color)) return color;
+  }
+  return ROOT_BRANCH_COLORS[(rootNode.children || []).length % ROOT_BRANCH_COLORS.length];
+};
+
+const countLeafOptions = (node) => {
+  if (!node.children || node.children.length === 0) return 1;
+  return node.children.reduce((total, child) => total + countLeafOptions(child), 0);
+};
+
+const collectSectionTimings = (node, baseSeconds, collector = []) => {
+  const hasChildren = node.children && node.children.length > 0;
+  if (node.id !== 'root' && hasChildren) {
+    const directOptions = node.children.filter(child => !child.children || child.children.length === 0).length;
+    const directSubsections = node.children.filter(child => child.children && child.children.length > 0).length;
+    const totalLeafOptions = countLeafOptions(node);
+    const nestedOptions = Math.max(0, totalLeafOptions - directOptions);
+    const complexity = 1 + Math.max(0, directOptions - 1) * 0.22 + directSubsections * 0.35 + nestedOptions * 0.08;
+    collector.push({
+      id: node.id,
+      label: node.label,
+      seconds: baseSeconds * complexity
+    });
+  }
+  (node.children || []).forEach(child => collectSectionTimings(child, baseSeconds, collector));
+  return collector;
+};
+
+const formatDuration = (seconds) => {
+  const totalSeconds = Math.max(0, Math.round(seconds));
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const remSeconds = totalSeconds % 60;
+  return remSeconds === 0 ? `${minutes}m` : `${minutes}m ${remSeconds}s`;
+};
 
 // --- Unique ID generator ---
 let _idCounter = 1000;
@@ -287,10 +339,10 @@ const addChild = (tree, parentId, side) => {
   if (!parent.children) parent.children = [];
   const newId = genId();
   const newNode = { id: newId, label: 'New Node' };
-  // Inherit side from parent if it's a top-level child
+  // Auto-balance top-level branches from root and assign harmonious colors
   if (parent.id === 'root') {
-    newNode.side = side || 'right';
-    newNode.color = '#64748b';
+    newNode.side = getNextRootSide(parent);
+    newNode.color = getNextRootColor(parent);
     newNode.icon = 'Layers';
   }
   parent.children.push(newNode);
@@ -474,8 +526,7 @@ const ContextMenu = ({ x, y, nodeId, nodeLabel, isRoot, onRename, onAddChild, on
         <p className="text-sm text-white font-semibold truncate mt-0.5">{nodeLabel}</p>
       </div>
       <MenuItem icon={Edit3} label="Rename" color="text-blue-400" onClick={onRename} />
-      <MenuItem icon={PlusCircle} label={isRoot ? "Add Child (Right)" : "Add Child"} color="text-emerald-400" onClick={onAddChild} />
-      {isRoot && <MenuItem icon={PlusCircle} label="Add Child (Left)" color="text-purple-400" onClick={onAddChildLeft} />}
+      <MenuItem icon={PlusCircle} label={isRoot ? "Add Child (Auto Side)" : "Add Child"} color="text-emerald-400" onClick={onAddChild} />
       {!isRoot && <div className="h-px bg-slate-700/50 my-1 mx-2"></div>}
       {!isRoot && <MenuItem icon={Trash} label="Delete" danger onClick={onDelete} />}
     </div>
@@ -714,6 +765,7 @@ const apiSaveTree = async (tree) => {
 
 function App() {
   const [treeData, setTreeData] = useState(INITIAL_TREE_DATA);
+  const [featureBaseSeconds, setFeatureBaseSeconds] = useState(10);
   const [history, setHistory] = useState([]);
   const [transform, setTransform] = useState({ x: 0, y: 0, k: 0.65 });
   const [isDragging, setIsDragging] = useState(false);
@@ -727,6 +779,15 @@ function App() {
   const [isLoaded, setIsLoaded] = useState(false);
   const containerRef = useRef(null);
   const dragStart = useRef({ x: 0, y: 0 });
+
+  const timingSummary = useMemo(() => {
+    const sectionTimings = collectSectionTimings(treeData, featureBaseSeconds);
+    const totalSeconds = sectionTimings.reduce((acc, section) => acc + section.seconds, 0);
+    return {
+      sectionsCount: sectionTimings.length,
+      totalSeconds
+    };
+  }, [treeData, featureBaseSeconds]);
 
   // Load from server on mount
   useEffect(() => {
@@ -992,6 +1053,29 @@ function App() {
           <p className="text-sm text-slate-400 mt-1">Click to select · Double-click to rename · Right-click for options</p>
         </div>
         <div className="flex gap-4 items-center">
+          <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-900/95 border border-slate-700 shadow-lg">
+            <div className="text-[#FF8B60]"><Timer size={16} /></div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-400 uppercase tracking-wide">Feature time</span>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={featureBaseSeconds}
+                onChange={(e) => setFeatureBaseSeconds(Math.max(1, Number(e.target.value) || 1))}
+                className="w-14 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-slate-100 text-xs"
+                title="Seconds per feature section"
+              />
+              <span className="text-slate-500">sec</span>
+            </div>
+            <div className="h-5 w-px bg-slate-700"></div>
+            <div className="text-xs">
+              <span className="text-slate-400 uppercase tracking-wide mr-2">Total customization</span>
+              <span className="text-white font-semibold">{formatDuration(timingSummary.totalSeconds)}</span>
+              <span className="text-slate-500 ml-2">({timingSummary.sectionsCount} sections)</span>
+            </div>
+          </div>
+
           {/* Sync status */}
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
             syncStatus === 'saved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
