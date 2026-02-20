@@ -826,6 +826,7 @@ function App() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [showTimingBreakdown, setShowTimingBreakdown] = useState(false);
   const [timingBreakdownMode, setTimingBreakdownMode] = useState('all');
+  const [autoOpenBreakdown, setAutoOpenBreakdown] = useState(false);
   const containerRef = useRef(null);
   const dragStart = useRef({ x: 0, y: 0 });
 
@@ -866,6 +867,10 @@ function App() {
     if (local.settings?.timingBreakdownMode === 'all' || local.settings?.timingBreakdownMode === 'top') {
       setTimingBreakdownMode(local.settings.timingBreakdownMode);
     }
+    if (typeof local.settings?.autoOpenBreakdown === 'boolean') {
+      setAutoOpenBreakdown(local.settings.autoOpenBreakdown);
+      setShowTimingBreakdown(local.settings.autoOpenBreakdown);
+    }
 
     apiLoadTree().then(payload => {
       if (payload.treeData) {
@@ -876,6 +881,10 @@ function App() {
       }
       if (payload.settings?.timingBreakdownMode === 'all' || payload.settings?.timingBreakdownMode === 'top') {
         setTimingBreakdownMode(payload.settings.timingBreakdownMode);
+      }
+      if (typeof payload.settings?.autoOpenBreakdown === 'boolean') {
+        setAutoOpenBreakdown(payload.settings.autoOpenBreakdown);
+        setShowTimingBreakdown(payload.settings.autoOpenBreakdown);
       }
 
       if (_hasBackend === true) {
@@ -894,7 +903,8 @@ function App() {
       treeData,
       settings: {
         featureBaseSeconds,
-        timingBreakdownMode
+        timingBreakdownMode,
+        autoOpenBreakdown
       }
     };
 
@@ -907,7 +917,7 @@ function App() {
       setSyncStatus(ok ? 'saved' : 'offline');
     }, 500);
     return () => clearTimeout(t);
-  }, [treeData, featureBaseSeconds, timingBreakdownMode, isLoaded]);
+  }, [treeData, featureBaseSeconds, timingBreakdownMode, autoOpenBreakdown, isLoaded]);
 
   // Recalculate layout whenever tree changes
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(() => calculateBalancedLayout(treeData), [treeData]);
@@ -1139,7 +1149,16 @@ function App() {
   const handleResetEstimation = () => {
     setFeatureBaseSeconds(10);
     setTimingBreakdownMode('all');
+    setAutoOpenBreakdown(false);
     setShowTimingBreakdown(false);
+  };
+
+  const handleToggleAutoOpenBreakdown = () => {
+    setAutoOpenBreakdown(prev => {
+      const next = !prev;
+      setShowTimingBreakdown(next);
+      return next;
+    });
   };
   
   return (
@@ -1196,6 +1215,13 @@ function App() {
               title="Show section breakdown"
             >
               {showTimingBreakdown ? 'Hide' : 'Breakdown'}
+            </button>
+            <button
+              onClick={handleToggleAutoOpenBreakdown}
+              className={`text-[11px] border rounded px-2 py-1 transition-colors ${autoOpenBreakdown ? 'text-[#FF8B60] border-[#FF8B60]/60 bg-[#FF8B60]/10' : 'text-slate-400 border-slate-600 hover:text-white'}`}
+              title="Auto-open breakdown on load"
+            >
+              Auto-open
             </button>
           </div>
           {showTimingBreakdown && (
