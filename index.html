@@ -15,6 +15,7 @@
       @keyframes pulseRing { 0%,100% { box-shadow: 0 0 0 0 rgba(255,69,0,0.4); } 50% { box-shadow: 0 0 0 8px rgba(255,69,0,0); } }
       .ctx-menu { animation: fadeIn 0.15s ease-out; }
       .toast-anim { animation: slideUp 0.25s ease-out; }
+      .breakdown-anim { animation: fadeIn 0.18s ease-out; }
       .selected-ring { animation: pulseRing 2s infinite; }
       .edit-input:focus { outline: none; box-shadow: 0 0 0 2px rgba(255,69,0,0.5); }
     </style>
@@ -828,6 +829,7 @@ function App() {
   const [timingBreakdownMode, setTimingBreakdownMode] = useState('all');
   const [autoOpenBreakdown, setAutoOpenBreakdown] = useState(false);
   const containerRef = useRef(null);
+  const timingPanelRef = useRef(null);
   const dragStart = useRef({ x: 0, y: 0 });
 
   const timingSummary = useMemo(() => {
@@ -854,6 +856,18 @@ function App() {
   useEffect(() => {
     syncIdCounterFromTree(treeData);
   }, [treeData]);
+
+  useEffect(() => {
+    if (!showTimingBreakdown) return;
+    const onPointerDown = (event) => {
+      if (!timingPanelRef.current) return;
+      if (!timingPanelRef.current.contains(event.target)) {
+        setShowTimingBreakdown(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [showTimingBreakdown]);
 
   // Load from server on mount
   useEffect(() => {
@@ -1050,6 +1064,7 @@ function App() {
         setSelectedId(null);
         setContextMenu(null);
         setEditingId(null);
+        setShowTimingBreakdown(false);
       }
       if (e.key === 'F2' && selectedId) {
         e.preventDefault();
@@ -1173,7 +1188,7 @@ function App() {
           <p className="text-sm text-slate-400 mt-1">Click to select · Double-click to rename · Right-click for options</p>
         </div>
         <div className="flex gap-4 items-center">
-          <div className="relative">
+          <div className="relative" ref={timingPanelRef}>
           <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-900/95 border border-slate-700 shadow-lg">
             <div className="text-[#FF8B60]"><Timer size={16} /></div>
             <div className="flex items-center gap-2 text-xs">
@@ -1225,7 +1240,7 @@ function App() {
             </button>
           </div>
           {showTimingBreakdown && (
-            <div className="absolute top-full mt-2 right-0 w-[340px] max-h-[280px] overflow-auto bg-slate-900/95 border border-slate-700 rounded-xl shadow-2xl p-3 z-[70]">
+            <div className="breakdown-anim absolute top-full mt-2 right-0 w-[340px] max-h-[280px] overflow-auto bg-slate-900/95 border border-slate-700 rounded-xl shadow-2xl p-3 z-[70]">
               <div className="flex items-center justify-between mb-2 gap-2">
                 <p className="text-[11px] text-slate-400 uppercase tracking-wide">Sections estimation</p>
                 <div className="flex items-center gap-1 text-[11px]">
