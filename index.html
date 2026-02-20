@@ -744,29 +744,62 @@ const FloatingActionBar = ({ selectedId, isRoot, onRename, onAddChild, onDelete,
 
 // --- API helpers (works on Render with backend, falls back gracefully on GitHub Pages) ---
 const API_BASE = window.location.origin;
+const LOCAL_STATE_KEY = 'snoovatar_chart_state_v1';
 let _hasBackend = null; // null = unknown, true/false after first check
+
+const normalizeLoadedPayload = (payload) => {
+  if (!payload) return { treeData: null, settings: {} };
+  if (payload.treeData || payload.settings) {
+    return {
+      treeData: payload.treeData && payload.treeData.id ? payload.treeData : null,
+      settings: payload.settings || {}
+    };
+  }
+  if (payload.id) {
+    return { treeData: payload, settings: {} };
+  }
+  return { treeData: null, settings: {} };
+};
+
+const loadLocalState = () => {
+  try {
+    const raw = localStorage.getItem(LOCAL_STATE_KEY);
+    if (!raw) return { treeData: null, settings: {} };
+    return normalizeLoadedPayload(JSON.parse(raw));
+  } catch (e) {
+    return { treeData: null, settings: {} };
+  }
+};
+
+const saveLocalState = (payload) => {
+  try {
+    localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(payload));
+  } catch (e) {
+    console.warn('Could not save local state');
+  }
+};
 
 const apiLoadTree = async () => {
   try {
     const res = await fetch(`${API_BASE}/api/tree`, { signal: AbortSignal.timeout(4000) });
     if (!res.ok) throw new Error('Not OK');
-    const data = await res.json();
+    const data = normalizeLoadedPayload(await res.json());
     _hasBackend = true;
     return data;
   } catch (e) {
     _hasBackend = false;
     console.warn('No backend detected (GitHub Pages mode). Edits are local only.');
-    return null;
+    return { treeData: null, settings: {} };
   }
 };
 
-const apiSaveTree = async (tree) => {
+const apiSaveTree = async (payload) => {
   if (_hasBackend === false) return false; // skip if no backend
   try {
     const res = await fetch(`${API_BASE}/api/tree`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(tree),
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(5000)
     });
     if (!res.ok) throw new Error('Not OK');
@@ -823,12 +856,26 @@ function App() {
 
   // Load from server on mount
   useEffect(() => {
-    apiLoadTree().then(data => {
-      if (data && data.id) {
-        setTreeData(data);
+    const local = loadLocalState();
+    if (local.treeData) {
+      setTreeData(local.treeData);
+    }
+    if (Number(local.settings?.featureBaseSeconds) > 0) {
+      setFeatureBaseSeconds(Number(local.settings.featureBaseSeconds));
+    }
+
+    apiLoadTree().then(payload => {
+      if (payload.treeData) {
+        setTreeData(payload.treeData);
+      }
+      if (Number(payload.settings?.featureBaseSeconds) > 0) {
+        setFeatureBaseSeconds(Number(payload.settings.featureBaseSeconds));
+      }
+
+      if (_hasBackend === true) {
         setSyncStatus('saved');
       } else {
-        setSyncStatus(_hasBackend === false ? 'local' : 'saved');
+        setSyncStatus('local');
       }
       setIsLoaded(true);
     });
@@ -837,14 +884,23 @@ function App() {
   // Auto-save whenever tree changes (after initial load)
   useEffect(() => {
     if (!isLoaded) return;
+    const payload = {
+      treeData,
+      settings: {
+        featureBaseSeconds
+      }
+    };
+
+    saveLocalState(payload);
+
     if (_hasBackend === false) { setSyncStatus('local'); return; }
     setSyncStatus('saving');
     const t = setTimeout(async () => {
-      const ok = await apiSaveTree(treeData);
+      const ok = await apiSaveTree(payload);
       setSyncStatus(ok ? 'saved' : 'offline');
     }, 500);
     return () => clearTimeout(t);
-  }, [treeData, isLoaded]);
+  }, [treeData, featureBaseSeconds, isLoaded]);
 
   // Recalculate layout whenever tree changes
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(() => calculateBalancedLayout(treeData), [treeData]);
@@ -1158,6 +1214,7 @@ function App() {
             syncStatus === 'saved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
             syncStatus === 'saving' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
             syncStatus === 'loading' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
+            syncStatus === 'local' ? 'bg-slate-500/10 border-slate-500/20 text-slate-300' :
             'bg-red-500/10 border-red-500/20 text-red-400'
           }`}>
             {syncStatus === 'saved' && <><Cloud size={13} /> Saved</>}
