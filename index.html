@@ -286,6 +286,16 @@ const formatDuration = (seconds) => {
 let _idCounter = 1000;
 const genId = () => `node_${++_idCounter}`;
 
+const getMaxNodeCounter = (node) => {
+  const own = /^node_(\d+)$/.test(node.id) ? Number(node.id.split('_')[1]) : 0;
+  const children = node.children || [];
+  return children.reduce((max, child) => Math.max(max, getMaxNodeCounter(child)), own);
+};
+
+const syncIdCounterFromTree = (tree) => {
+  _idCounter = Math.max(_idCounter, getMaxNodeCounter(tree));
+};
+
 // --- Deep clone tree ---
 const cloneTree = (node) => {
   const c = { ...node };
@@ -334,6 +344,7 @@ const renameNode = (tree, id, newLabel) => {
 
 const addChild = (tree, parentId, side) => {
   const t = cloneTree(tree);
+  syncIdCounterFromTree(t);
   const parent = findNode(t, parentId);
   if (!parent) return { tree: t, newId: null };
   if (!parent.children) parent.children = [];
@@ -410,6 +421,7 @@ const calculateBalancedLayout = (root) => {
 
         node.children.forEach(child => {
           const childNode = subtreeNodes.find(n => n.id === child.id);
+          if (!childNode) return;
           let sourceX, targetX;
           if (direction === 1) {
             sourceX = x + getHalfWidth(type); 
@@ -442,6 +454,7 @@ const calculateBalancedLayout = (root) => {
 
     roots.forEach((child) => {
       const childNode = subtreeNodes.find(n => n.id === child.id);
+      if (!childNode) return;
       let sourceX, targetX;
       if (direction === 1) {
         sourceX = rootNode.x + getHalfWidth('root') - 10;
@@ -777,6 +790,7 @@ function App() {
   const [toast, setToast] = useState(null);
   const [syncStatus, setSyncStatus] = useState('loading'); // 'loading' | 'saved' | 'saving' | 'offline' | 'local'
   const [isLoaded, setIsLoaded] = useState(false);
+  const [showTimingBreakdown, setShowTimingBreakdown] = useState(false);
   const containerRef = useRef(null);
   const dragStart = useRef({ x: 0, y: 0 });
 
@@ -785,9 +799,14 @@ function App() {
     const totalSeconds = sectionTimings.reduce((acc, section) => acc + section.seconds, 0);
     return {
       sectionsCount: sectionTimings.length,
-      totalSeconds
+      totalSeconds,
+      sectionTimings
     };
   }, [treeData, featureBaseSeconds]);
+
+  useEffect(() => {
+    syncIdCounterFromTree(treeData);
+  }, [treeData]);
 
   // Load from server on mount
   useEffect(() => {
@@ -1053,6 +1072,7 @@ function App() {
           <p className="text-sm text-slate-400 mt-1">Click to select · Double-click to rename · Right-click for options</p>
         </div>
         <div className="flex gap-4 items-center">
+          <div className="relative">
           <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-900/95 border border-slate-700 shadow-lg">
             <div className="text-[#FF8B60]"><Timer size={16} /></div>
             <div className="flex items-center gap-2 text-xs">
@@ -1074,6 +1094,30 @@ function App() {
               <span className="text-white font-semibold">{formatDuration(timingSummary.totalSeconds)}</span>
               <span className="text-slate-500 ml-2">({timingSummary.sectionsCount} sections)</span>
             </div>
+            <button
+              onClick={() => setShowTimingBreakdown(prev => !prev)}
+              className="text-[11px] text-slate-400 hover:text-white border border-slate-600 rounded px-2 py-1"
+              title="Show section breakdown"
+            >
+              {showTimingBreakdown ? 'Hide' : 'Breakdown'}
+            </button>
+          </div>
+          {showTimingBreakdown && (
+            <div className="absolute top-full mt-2 right-0 w-[340px] max-h-[280px] overflow-auto bg-slate-900/95 border border-slate-700 rounded-xl shadow-2xl p-3 z-[70]">
+              <p className="text-[11px] text-slate-400 uppercase tracking-wide mb-2">Sections estimation</p>
+              <div className="space-y-1.5">
+                {timingSummary.sectionTimings
+                  .slice()
+                  .sort((a, b) => b.seconds - a.seconds)
+                  .map(section => (
+                    <div key={section.id} className="flex items-center justify-between text-xs bg-slate-800/70 border border-slate-700 rounded-lg px-2 py-1.5">
+                      <span className="text-slate-200 truncate pr-3">{section.label}</span>
+                      <span className="text-[#FF8B60] font-semibold shrink-0">{formatDuration(section.seconds)}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
           </div>
 
           {/* Sync status */}
