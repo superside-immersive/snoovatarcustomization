@@ -1,3 +1,4 @@
 node_modules/
 data.json
+presets.json
 .DS_Store
